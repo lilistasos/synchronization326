@@ -12,6 +12,7 @@ enum { thinking, eating };
 
 int state[numOfPhilosophers];
 
+pthread_mutex_t printMutex;
 pthread_mutex_t mtx;
 pthread_cond_t cond_var[numOfPhilosophers];
 
@@ -34,40 +35,60 @@ void pickup_forks (int philosopherNumber)
         {
             pthread_cond_wait(&cond_var[philosopherNumber], &mtx);
         }
+
     state[philosopherNumber] = eating;
+
     int leftFork =  philosopherNumber;
     int rightFork = (philosopherNumber + 1) % numOfPhilosophers;
 
-    cout << "Forks #" << leftFork << " and #" << rightFork
-         << " with" << philosopherNumber << endl;
+    pthread_mutex_lock(&printMutex);
+
+    cout << "Forks are with Philosopher #" << philosopherNumber << "\n";
+    cout << "Fork #" << leftFork << " is with " << philosopherNumber << "\n";
+    cout << "Fork #" << rightFork << " is with " << philosopherNumber << "\n";
+
+    pthread_mutex_unlock(&printMutex);
+
     pthread_mutex_unlock(&mtx);
 }
 
 void return_forks (int philosopherNumber)
 {
     pthread_mutex_lock(&mtx);
+
     state[philosopherNumber] = thinking;
 
     pthread_cond_signal(&cond_var[leftPhilosopher(philosopherNumber)]);
     pthread_cond_signal(&cond_var[rightPhilosopher(philosopherNumber)]);
+
     pthread_mutex_unlock(&mtx);
 }
 
 void* philosopher(void* num)
 {
     int philosopherNumber = *(int*)num;
+
     while (true)
     {
         int thinkTime = (rand() % 3 + 1) * 1000;
+
+        pthread_mutex_lock(&printMutex);
         cout << "Philosopher #" << philosopherNumber
-             << " took " << thinkTime << "ms thinking" << endl;
+             <<" took " << thinkTime << "ms thinking\n";
+        pthread_mutex_unlock(&printMutex);
+
         usleep(thinkTime * 1000);
 
         pickup_forks(philosopherNumber);
 
         int eatTime = (rand() % 3 + 1) * 1000;
+
+        pthread_mutex_lock(&printMutex);
         cout << "Philosopher #" << philosopherNumber
-             << " took " << eatTime << "ms eating" << endl;
+             << " took " << eatTime << "ms eating\n";
+        pthread_mutex_unlock(&printMutex);
+
+        usleep(eatTime * 1000);
 
         return_forks(philosopherNumber);
     }
@@ -83,9 +104,31 @@ int main ()
     int philosophersNumber[numOfPhilosophers];
 
     pthread_mutex_init(&mtx, NULL);
-    for (int i = 0; i < numOfPhilosophers; i++)
-        {
+    pthread_mutex_init(&printMutex, NULL);
 
+    for (int i = 0; i < numOfPhilosophers; i++)
+    {
+        pthread_cond_init(&cond_var[i], NULL);
+        state[i] = thinking;
+        philosophersNumber[i] = i;
+    }
+
+    for (int i = 0; i < numOfPhilosophers; i++)
+    {
+        pthread_create(&threadID[i], NULL, philosopher, &philosophersNumber[i]);
+    }
+
+    for (int i = 0; i < numOfPhilosophers; i++)
+    {
+        pthread_join(threadID[i], NULL);
+    }
+
+    pthread_mutex_destroy(&mtx);
+    pthread_mutex_destroy(&printMutex);
+
+    for (int i = 0; i < numOfPhilosophers; i++)
+    {
+        pthread_cond_destroy(&cond_var[i]);
     }
 
     return 0;
